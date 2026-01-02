@@ -1,0 +1,28 @@
+{
+  "name": "nirvana-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "migrate": "node-pg-migrate --dir migrations --database $DATABASE_URL --migrations-table schema_migrations",
+    "migrate:up": "node-pg-migrate up --dir migrations --database $DATABASE_URL --migrations-table schema_migrations",
+    "migrate:down": "node-pg-migrate down --dir migrations --database $DATABASE_URL --migrations-table schema_migrations",
+    "ingest": "node scripts/ingest.js",
+    "extract-art": "node scripts/extract-art.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "@azure/storage-blob": "^12.18.0",
+    "music-metadata": "^7.14.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "node-pg-migrate": "^7.6.2",
+    "nodemon": "^3.1.0"
+  }
+}
