@@ -1,7 +1,18 @@
 const { Router } = require('express');
 const { pool } = require('../db');
+const { getStreamingSasUrl } = require('../services/sasService');
 
 const router = Router();
+
+function normalizeArtist(rawName) {
+  if (!rawName) {
+    return { key: '', display: '' };
+  }
+  const trimmed = rawName.trim();
+  const withoutIndex = trimmed.replace(/^\d+\s*/, '');
+  const display = withoutIndex || trimmed;
+  return { key: display.toLowerCase(), display };
+}
 
 router.get('/api/library', async (req, res) => {
   try {
@@ -25,16 +36,19 @@ router.get('/api/library', async (req, res) => {
 
     const artists = [];
     const artistMap = new Map();
-    const albumMap = new Map();
+    const albumMaps = new Map();
 
     for (const row of rows) {
-      let artist = artistMap.get(row.artist_id);
+      const { key: artistKey, display } = normalizeArtist(row.artist_name);
+      let artist = artistMap.get(artistKey);
       if (!artist) {
-        artist = { artist_id: row.artist_id, artist: row.artist_name, albums: [] };
-        artistMap.set(row.artist_id, artist);
+        artist = { artist_id: row.artist_id, artist: display || row.artist_name, albums: [] };
+        artistMap.set(artistKey, artist);
+        albumMaps.set(artistKey, new Map());
         artists.push(artist);
       }
 
+      const albumMap = albumMaps.get(artistKey);
       const albumKey = row.album_id;
       let album = albumMap.get(albumKey);
       if (!album) {
@@ -43,6 +57,7 @@ router.get('/api/library', async (req, res) => {
           title: row.album_title,
           year: row.album_year,
           cover_blob_path: row.cover_blob_path,
+          cover_url: null,
           tracks: [],
         };
         albumMap.set(albumKey, album);
@@ -56,6 +71,16 @@ router.get('/api/library', async (req, res) => {
         duration: row.duration,
       });
     }
+
+    // Attach short-lived SAS URLs for covers in parallel
+    const coverPromises = Array.from(albumMaps.values())
+      .flatMap((map) => Array.from(map.values()))
+      .map(async (album) => {
+        if (album.cover_blob_path) {
+          album.cover_url = await getStreamingSasUrl(album.cover_blob_path);
+        }
+      });
+    await Promise.all(coverPromises);
 
     return res.json(artists);
   } catch (err) {
