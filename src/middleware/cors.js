@@ -7,7 +7,7 @@ function corsOptions() {
   const allowAll = origins.length === 1 && origins[0] === '*';
   return {
     origin: allowAll ? true : origins,
-    methods: ['GET', 'HEAD', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept'],
     credentials: false,
     maxAge: 86400,

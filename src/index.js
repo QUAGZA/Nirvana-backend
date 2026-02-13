@@ -4,6 +4,11 @@ const { pool } = require('./db');
 const healthRouter = require('./routes/health');
 const tracksRouter = require('./routes/tracks');
 const libraryRouter = require('./routes/library');
+const searchRouter = require('./routes/search');
+const playlistsRouter = require('./routes/playlists');
+const favoritesRouter = require('./routes/favorites');
+const historyRouter = require('./routes/history');
+const artistsAlbumsRouter = require('./routes/artists-albums');
 const corsMiddleware = require('./middleware/cors');
 const requestLogger = require('./middleware/logger');
 
@@ -15,6 +20,11 @@ app.use(requestLogger);
 app.use(healthRouter);
 app.use(tracksRouter);
 app.use(libraryRouter);
+app.use(searchRouter);
+app.use(playlistsRouter);
+app.use(favoritesRouter);
+app.use(historyRouter);
+app.use(artistsAlbumsRouter);
 
 const start = async () => {
   try {

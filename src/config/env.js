@@ -20,6 +20,7 @@ const config = {
   port: parseInt(process.env.PORT || '3000', 10),
   databaseUrl: requireEnv('DATABASE_URL'),
   dbSsl: (process.env.DB_SSL || 'false').toLowerCase() === 'true',
+  dbCaCertPath: optionalEnv('DB_CA_CERT_PATH'),
   azure: {
     accountName: optionalEnv('AZURE_STORAGE_ACCOUNT'),
     accountKey: optionalEnv('AZURE_STORAGE_KEY'),
