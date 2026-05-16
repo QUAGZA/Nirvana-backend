@@ -8,7 +8,7 @@ function corsOptions() {
   return {
     origin: allowAll ? true : origins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'ngrok-skip-browser-warning'],
     credentials: false,
     maxAge: 86400,
   };
