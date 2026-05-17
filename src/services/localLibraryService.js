@@ -1,8 +1,9 @@
 const fs = require('fs/promises');
 const path = require('path');
 const mm = require('music-metadata');
+const config = require('../config/env');
 
-const ALBUMS_DIR = 'e:\\NIRVANA\\Albums';
+const ALBUMS_DIR = config.albumsDir;
 let libraryCache = { albums: [] };
 
 async function scanLibrary() {

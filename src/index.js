@@ -9,7 +9,7 @@ const ngrok = require('@ngrok/ngrok');
 const app = express();
 
 app.use(corsMiddleware);
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 
 app.use(localRouter);
