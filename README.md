@@ -1,6 +1,6 @@
 # Nirvana Backend
 
-The API server for [Nirvana](https://github.com/QUAGZA/Nirvana-Web) — a self-hosted music streaming platform. It scans a local folder of albums, extracts metadata, and serves audio streams + cover art over HTTP with JWT authentication and optional ngrok tunneling for remote access.
+The API server for [Nirvana Web](https://github.com/QUAGZA/Nirvana-Web) — a self-hosted music streaming platform. It scans a local folder of albums, extracts metadata, and serves audio streams + cover art over HTTP with JWT authentication and optional ngrok / Cloudflare tunneling for remote access.
 
 ## How It Works
 
@@ -25,22 +25,51 @@ Your Albums Folder          Nirvana Backend              Nirvana Frontend
 4. Cover art is detected from `cover.jpg` / `cover.png` in each folder
 5. Everything is served behind JWT authentication
 
+## 🚀 Live Frontend Deployment
+
+You don't need to host or run the frontend locally to use your backend! You can connect instantly using our official live web app:
+
+👉 **[Launch Nirvana Web (Live)](https://nirvana-web-beige.vercel.app/)**
+
+Once your backend is running with a tunnel (`TUNNEL_MODE=1` or `2`), simply open the live link above, enter your public tunnel URL and `APP_PASSWORD`, and start streaming!
+
 ## Getting Started
 
 ### Prerequisites
 
 - **Node.js** 18+
-- A folder of music organized as:
-  ```
-  Albums/
-  ├── Artist Name - Album Title/
-  │   ├── cover.jpg
-  │   ├── 01 - Track One.flac
-  │   ├── 02 - Track Two.flac
-  │   └── ...
-  ├── Another Artist - Another Album/
-  │   └── ...
-  ```
+- A folder of music organized according to the following conventions:
+
+### 📁 Library Organization & Naming Conventions
+
+Nirvana's scanner is designed to be smart and forgiving, but following these conventions ensures your library looks pristine:
+
+```
+Albums/
+├── Daft Punk - Discovery/               # Folder format: "Artist - Album"
+│   ├── cover.jpg                        # Cover art (cover.jpg or cover.png)
+│   ├── 01 - One More Time.flac          # Audio files (.flac, .mp3, .m4a, .wav)
+│   ├── 02 - Aerodynamic.flac
+│   └── 03 - Digital Love.flac
+│
+├── Kendrick Lamar - DAMN/
+│   ├── cover.png
+│   ├── 01 BLOOD.mp3                     # Leading track numbers are auto-stripped
+│   └── 02 DNA.mp3
+```
+
+#### 1. Album Folders (`Artist - Album`)
+*   Name your subfolders using the `Artist Name - Album Title` format. 
+*   The scanner splits the folder name at ` - ` to determine the Artist and Album. If no hyphen is present, the entire folder name becomes the Album title, and the artist defaults to `Unknown Artist`.
+
+#### 2. Cover Art (`cover.jpg` / `cover.png`)
+*   Place an image file (`.jpg`, `.jpeg`, `.png`) inside each album folder.
+*   The scanner explicitly searches for `cover.jpg` or `cover.png`. If neither is found, it will automatically fall back to using the first image file present in the folder.
+
+#### 3. Audio Files & Metadata
+*   **Supported Formats:** `.flac`, `.mp3`, `.m4a`, `.wav`.
+*   **Smart Tag Parsing:** The scanner reads embedded ID3/Vorbis tags for Track Title, Artist, Track Number, and Duration.
+*   **Automatic Fallbacks:** If your audio files lack embedded tags, Nirvana smartly extracts the title from the filename while stripping out leading track numbers (e.g., `01 - One More Time.flac` cleanly becomes `One More Time`). It will also automatically assign sequential track numbers if tag metadata is missing.
 
 ### Installation
 
