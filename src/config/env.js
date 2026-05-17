@@ -24,6 +24,7 @@ const config = {
   appPassword: process.env.APP_PASSWORD || 'password',
   jwtSecret,
   albumsDir: process.env.ALBUMS_DIR || path.resolve('Albums'),
+  tunnelMode: parseInt(process.env.TUNNEL_MODE || '0', 10), // 0 = none, 1 = ngrok, 2 = cloudflare
 };
 
 module.exports = config;

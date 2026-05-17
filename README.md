@@ -14,7 +14,8 @@ Your Albums Folder          Nirvana Backend              Nirvana Frontend
 └──────────────────┘       └─────────────────┘
                                   │
                                   ▼
-                           ngrok tunnel (optional)
+                           Tunnel (optional)
+                           ngrok or Cloudflare
                            for remote streaming
 ```
 
@@ -69,7 +70,8 @@ Create a `.env` file in the project root (see `.env.example`):
 | `APP_PASSWORD` | **Yes** | `password` | Login password for the frontend |
 | `JWT_SECRET` | Recommended | Auto-generated | Secret for signing JWT tokens. If not set, a random one is generated on each restart (existing tokens will invalidate) |
 | `ALBUMS_DIR` | **Yes** | `./Albums` | Absolute path to your music folder |
-| `NGROK_AUTHTOKEN` | No | — | Your ngrok auth token for remote tunneling |
+| `TUNNEL_MODE` | No | `0` | `0` = no tunnel, `1` = ngrok, `2` = Cloudflare Tunnel |
+| `NGROK_AUTHTOKEN` | If mode=1 | — | Your ngrok auth token |
 | `CORS_ORIGINS` | No | `*` | Comma-separated list of allowed origins |
 
 ## API Endpoints
@@ -156,24 +158,45 @@ Nirvana-Backend/
 
 - **Path traversal protection** — All file-serving endpoints validate that requested paths are inside `ALBUMS_DIR`
 - **JWT authentication** — Tokens expire after 7 days; secret is configurable via env
-- **Brute-force protection** — Login endpoint is rate-limited (5 attempts / 15 min per IP)
+- **Brute-force protection** — Login endpoint is rate-limited (5 attempts / 15 min per IP), natively utilizing `trust proxy` to parse `X-Forwarded-For` headers so individual attackers are blocked without locking out the entire tunnel (ngrok/Cloudflare).
 - **Request size limits** — JSON body capped at 1 MB
 - **No secrets in source** — All sensitive values are loaded from `.env` (gitignored)
 
-## Remote Access with ngrok
+## Remote Access (Tunneling)
 
-If you set `NGROK_AUTHTOKEN` in your `.env`, the server will automatically create an ngrok tunnel on startup and print the public URL:
+Nirvana supports two tunneling providers to expose your backend over the internet. Set `TUNNEL_MODE` in your `.env`:
+
+| Mode | Provider | Auth Required | Setup |
+|---|---|---|---|
+| `0` | None (default) | — | Local only, no tunnel |
+| `1` | ngrok | Yes (`NGROK_AUTHTOKEN`) | Free tier available at [ngrok.com](https://ngrok.com) |
+| `2` | Cloudflare Tunnel | No | Zero-config quick tunnels, no account needed |
+
+### Example: Cloudflare Tunnel (recommended — no account needed)
+
+```env
+TUNNEL_MODE=2
+```
 
 ```
+📡 Tunnel: starting Cloudflare Tunnel...
+
 ======================================================
 
-  Ngrok tunnel created!
-  Your API is accessible at: https://your-tunnel.ngrok-free.dev
+  Cloudflare Tunnel tunnel created!
+  Your API is accessible at: https://random-words.trycloudflare.com
 
 ======================================================
 ```
 
-Use this URL in the Nirvana frontend's "API URL" field to stream your music from anywhere.
+### Example: ngrok
+
+```env
+TUNNEL_MODE=1
+NGROK_AUTHTOKEN=your_token_here
+```
+
+Paste the printed URL into the Nirvana frontend's "API URL" field to stream your music from anywhere.
 
 ## License
 
