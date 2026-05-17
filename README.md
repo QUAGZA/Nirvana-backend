@@ -1,265 +1,203 @@
 # Nirvana Backend
 
-Node.js + Express API that powers the Nirvana Android app by serving library metadata, search, playlists/favorites/history endpoints, and short-lived Azure Blob SAS URLs for streaming tracks.
+The API server for [Nirvana](https://github.com/QUAGZA/Nirvana-Web) — a self-hosted music streaming platform. It scans a local folder of albums, extracts metadata, and serves audio streams + cover art over HTTP with JWT authentication and optional ngrok tunneling for remote access.
 
-Mobile app repository: https://github.com/QUAGZA/Nirvana
+## How It Works
 
-## Why This Exists
+```
+Your Albums Folder          Nirvana Backend              Nirvana Frontend
+┌──────────────────┐       ┌─────────────────┐          ┌────────────────┐
+│ Artist - Album/  │──────▶│ Scans folders   │◀────────▶│ Carousel UI    │
+│   cover.jpg      │       │ Extracts metadata│          │ Audio player   │
+│   01 - Track.flac│       │ Streams audio   │          │ Album browser  │
+│   02 - Track.mp3 │       │ Serves covers   │          └────────────────┘
+└──────────────────┘       └─────────────────┘
+                                  │
+                                  ▼
+                           Tunnel (optional)
+                           ngrok or Cloudflare
+                           for remote streaming
+```
 
-The backend is the trust boundary for Nirvana. It keeps database and Azure storage credentials off client devices, signs secure streaming URLs, and exposes a clean API for the mobile app.
+1. On startup, the server scans your `ALBUMS_DIR` folder
+2. Each subfolder is treated as an album (format: `Artist - Album Title`)
+3. Audio files (`.flac`, `.mp3`, `.m4a`, `.wav`) are parsed for metadata
+4. Cover art is detected from `cover.jpg` / `cover.png` in each folder
+5. Everything is served behind JWT authentication
 
-## Features
+## Getting Started
 
-- Library API (artists, albums, tracks)
-- Track streaming via signed Azure Blob URLs
-- Search across artists, albums, and tracks
-- Favorites, playlists, and playback history endpoints
-- Metadata ingestion from your Blob container
-- Optional embedded-art extraction workflow
+### Prerequisites
 
-## Tech Stack
+- **Node.js** 18+
+- A folder of music organized as:
+  ```
+  Albums/
+  ├── Artist Name - Album Title/
+  │   ├── cover.jpg
+  │   ├── 01 - Track One.flac
+  │   ├── 02 - Track Two.flac
+  │   └── ...
+  ├── Another Artist - Another Album/
+  │   └── ...
+  ```
 
-- Runtime: Node.js (CommonJS)
-- Framework: Express
-- Database: PostgreSQL
-- Storage: Azure Blob Storage
-- DB migrations: node-pg-migrate
-
-## Related Repositories
-
-- Nirvana backend: https://github.com/QUAGZA/Nirvana-backend
-- Nirvana Android app: https://github.com/QUAGZA/Nirvana
-
-## Prerequisites
-
-- Node.js 18+
-- npm 9+
-- PostgreSQL database
-- Azure Storage account with a blob container for music files
-
-## Quick Start (Local)
-
-1. Install dependencies:
+### Installation
 
 ```bash
+# Clone the repo
+git clone https://github.com/QUAGZA/Nirvana-Backend.git
+cd Nirvana-Backend
+
+# Install dependencies
 npm install
-```
 
-2. Create your environment file:
-
-```bash
+# Configure environment
 cp .env.example .env
+# Edit .env with your settings (see below)
+
+# Start the server
+npm start
 ```
 
-3. Set required values in .env:
+### Environment Variables
 
-```env
-PORT=3000
-DATABASE_URL=postgres://username:password@localhost:5432/nirvana
-DB_SSL=false
+Create a `.env` file in the project root (see `.env.example`):
 
-AZURE_STORAGE_ACCOUNT=your_account
-AZURE_STORAGE_KEY=your_key
-AZURE_BLOB_CONTAINER=music
-SAS_TTL_MINUTES=10
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `PORT` | No | `3001` | Server port |
+| `APP_PASSWORD` | **Yes** | `password` | Login password for the frontend |
+| `JWT_SECRET` | Recommended | Auto-generated | Secret for signing JWT tokens. If not set, a random one is generated on each restart (existing tokens will invalidate) |
+| `ALBUMS_DIR` | **Yes** | `./Albums` | Absolute path to your music folder |
+| `TUNNEL_MODE` | No | `0` | `0` = no tunnel, `1` = ngrok, `2` = Cloudflare Tunnel |
+| `NGROK_AUTHTOKEN` | If mode=1 | — | Your ngrok auth token |
+| `CORS_ORIGINS` | No | `*` | Comma-separated list of allowed origins |
 
-CORS_ORIGINS=http://localhost:3000,http://10.0.2.2:3000
-```
+## API Endpoints
 
-4. Run migrations:
+All endpoints except `/api/login` require a valid JWT token, passed either as:
+- `Authorization: Bearer <token>` header, or
+- `?token=<token>` query parameter (used by `<audio>` and `<img>` elements)
 
-```bash
-npm run migrate:up
-```
+### Authentication
 
-5. Start the server:
+| Method | Endpoint | Body | Description |
+|---|---|---|---|
+| `POST` | `/api/login` | `{ "password": "..." }` | Returns a JWT token (valid for 7 days) |
 
-```bash
-npm run dev
-```
-
-6. Verify health:
-
-```bash
-curl http://localhost:3000/health
-```
-
-Expected response:
-
+**Response:**
 ```json
-{"status":"ok","db":"up"}
+{ "token": "eyJhbGciOi..." }
 ```
 
-## Create Your Own Backend on Azure (Blob + SQL DB)
+**Rate limited:** 5 failed attempts per IP → 15-minute lockout.
 
-This project requires a PostgreSQL-compatible SQL database. The recommended Azure option is Azure Database for PostgreSQL Flexible Server.
+---
 
-### 1. Create an Azure Resource Group
+### Library
 
-```bash
-az group create --name rg-nirvana --location eastus
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/local/albums` | Returns all albums with tracks, metadata, and URLs |
+
+**Response:**
+```json
+[
+  {
+    "id": "1",
+    "title": "Album Title",
+    "artist": "Artist Name",
+    "year": 2026,
+    "coverUrl": "/api/local/covers/Artist%20-%20Album/cover.jpg?token=...",
+    "tracks": [
+      {
+        "id": "1",
+        "title": "Track Name",
+        "artist": "Artist Name",
+        "track_number": 1,
+        "duration": 215,
+        "url": "/api/local/stream?path=...&token=..."
+      }
+    ]
+  }
+]
 ```
 
-### 2. Create Azure Storage + Blob Container
+---
 
-```bash
-az storage account create \
-  --name nirvanastorage123 \
-  --resource-group rg-nirvana \
-  --location eastus \
-  --sku Standard_LRS
+### Media
 
-az storage container create \
-  --name music \
-  --account-name nirvanastorage123 \
-  --auth-mode login
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/local/covers/:folder/:file` | Serves album cover art |
+| `GET` | `/api/local/stream?path=<encoded_path>` | Streams audio files (supports `Range` headers for seeking) |
+
+The stream endpoint supports HTTP range requests, so the frontend can seek through tracks without downloading the entire file.
+
+## Project Structure
+
+```
+Nirvana-Backend/
+├── src/
+│   ├── index.js                    # Express app entry point
+│   ├── config/
+│   │   └── env.js                  # Environment variable loading
+│   ├── middleware/
+│   │   ├── cors.js                 # CORS configuration
+│   │   └── logger.js               # Request logging
+│   ├── routes/
+│   │   └── local.js                # Auth, albums, covers, streaming
+│   └── services/
+│       └── localLibraryService.js  # Folder scanner + metadata parser
+├── .env.example                    # Template for environment config
+└── package.json
 ```
 
-Get storage key:
+## Security
 
-```bash
-az storage account keys list \
-  --resource-group rg-nirvana \
-  --account-name nirvanastorage123 \
-  --query "[0].value" -o tsv
-```
+- **Path traversal protection** — All file-serving endpoints validate that requested paths are inside `ALBUMS_DIR`
+- **JWT authentication** — Tokens expire after 7 days; secret is configurable via env
+- **Brute-force protection** — Login endpoint is rate-limited (5 attempts / 15 min per IP), natively utilizing `trust proxy` to parse `X-Forwarded-For` headers so individual attackers are blocked without locking out the entire tunnel (ngrok/Cloudflare).
+- **Request size limits** — JSON body capped at 1 MB
+- **No secrets in source** — All sensitive values are loaded from `.env` (gitignored)
 
-### 3. Create Azure SQL Database Service (PostgreSQL)
+## Remote Access (Tunneling)
 
-```bash
-az postgres flexible-server create \
-  --resource-group rg-nirvana \
-  --name nirvana-pg-server \
-  --location eastus \
-  --admin-user nirvanaadmin \
-  --admin-password "<strong-password>" \
-  --sku-name Standard_B1ms \
-  --tier Burstable \
-  --version 16
-```
+Nirvana supports two tunneling providers to expose your backend over the internet. Set `TUNNEL_MODE` in your `.env`:
 
-Create the app database:
+| Mode | Provider | Auth Required | Setup |
+|---|---|---|---|
+| `0` | None (default) | — | Local only, no tunnel |
+| `1` | ngrok | Yes (`NGROK_AUTHTOKEN`) | Free tier available at [ngrok.com](https://ngrok.com) |
+| `2` | Cloudflare Tunnel | No | Zero-config quick tunnels, no account needed |
 
-```bash
-az postgres flexible-server db create \
-  --resource-group rg-nirvana \
-  --server-name nirvana-pg-server \
-  --database-name nirvana
-```
-
-Allow local access for development:
-
-```bash
-az postgres flexible-server firewall-rule create \
-  --resource-group rg-nirvana \
-  --name nirvana-pg-server \
-  --rule-name allow-local-dev \
-  --start-ip-address 0.0.0.0 \
-  --end-ip-address 0.0.0.0
-```
-
-### 4. Configure Environment for Azure Resources
-
-Example:
+### Example: Cloudflare Tunnel (recommended — no account needed)
 
 ```env
-DATABASE_URL=postgres://nirvanaadmin:<password>@nirvana-pg-server.postgres.database.azure.com:5432/nirvana?sslmode=require
-DB_SSL=true
-
-AZURE_STORAGE_ACCOUNT=nirvanastorage123
-AZURE_STORAGE_KEY=<storage-key>
-AZURE_BLOB_CONTAINER=music
-SAS_TTL_MINUTES=10
+TUNNEL_MODE=2
 ```
 
-### 5. Initialize Schema + Ingest Metadata
+```
+📡 Tunnel: starting Cloudflare Tunnel...
 
-```bash
-npm run migrate:up
-npm run ingest
+======================================================
+
+  Cloudflare Tunnel tunnel created!
+  Your API is accessible at: https://random-words.trycloudflare.com
+
+======================================================
 ```
 
-### 6. Deploy API (Optional)
+### Example: ngrok
 
-You can run this service in Azure App Service or Container Apps. The key requirement is to provide the same environment variables as in .env.
-
-## Environment Variables
-
-Required:
-
-- DATABASE_URL
-
-Recommended:
-
-- PORT (default: 3000)
-- DB_SSL (default: false)
-- DB_CA_CERT_PATH (optional)
-- AZURE_STORAGE_ACCOUNT
-- AZURE_STORAGE_KEY
-- AZURE_BLOB_CONTAINER (default: music)
-- SAS_TTL_MINUTES (default: 10)
-- CORS_ORIGINS (default: *)
-
-## API Overview
-
-- GET /health
-- GET /api/library
-- GET /api/tracks
-- GET /api/tracks/:id/stream
-- GET /api/search?q=...
-- Playlist/favorites/history routes under /api
-
-## Data and Ingestion
-
-### Ingest metadata from blob paths
-
-Dry run:
-
-```bash
-npm run ingest -- --dry-run
+```env
+TUNNEL_MODE=1
+NGROK_AUTHTOKEN=your_token_here
 ```
 
-Real run:
+Paste the printed URL into the Nirvana frontend's "API URL" field to stream your music from anywhere.
 
-```bash
-npm run ingest
-```
+## License
 
-Behavior:
-
-- Reads FLAC tags when available and falls back to path naming.
-- Skips already-ingested blobs by blob path.
-- Captures sibling cover image files when available.
-
-### Extract embedded album art
-
-```bash
-npm run extract-art -- --limit 100
-```
-
-Optional flags:
-
-- --force: overwrite existing cover associations
-- --limit N: process only N candidate tracks
-
-## Scripts
-
-- npm run dev: start with nodemon
-- npm start: start production server
-- npm run migrate: generic migration command
-- npm run migrate:up: apply migrations
-- npm run migrate:down: rollback one migration
-- npm run ingest: ingest metadata from storage
-- npm run extract-art: extract and upload embedded art
-
-## Connect the Android App
-
-After this backend is running, configure API_BASE_URL in the mobile app repository root .env:
-
-https://github.com/QUAGZA/Nirvana
-
-Use:
-
-- Emulator: http://10.0.2.2:3000
-- Physical device: http://YOUR_COMPUTER_IP:3000
-- Cloud deployment: https://YOUR_BACKEND_HOST
+MIT
